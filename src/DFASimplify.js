@@ -1,7 +1,15 @@
 'use strict';
 
+function getEndSymbol(endSymbolArray) {
+  const index = +(Math.random() * (endSymbolArray.length)).toFixed(0);
+  return endSymbolArray[index];
+}
+
 function simplifyDFA(DFA) {
+  const getES = getEndSymbol.bind(null, DFA.endSymbolArray);
+  // 状态集合
   const stateSetArray = [[...DFA.endState], Reflect.ownKeys(DFA.stateMap).filter(s => !DFA.endState.includes(+s)).map(s => +s)];
+  // 状态映射，状态 => stateSetIndex
   const stateSetMap = {
   };
   stateSetArray.forEach((stateSet, stateSetIndex) => {
@@ -10,13 +18,45 @@ function simplifyDFA(DFA) {
     });
   });
 
-  const newStateSetArray = [];
-  stateSetArray.forEach(stateSet => {
-    DFA.endSymbolArray.forEach(endSymbol => {
-      stateSet.forEach(state => {
+  let oldStateSetArray = stateSetArray;
+  let olStateMap = stateSetMap;
+  let newStateSetArray = [];
+  let newStateMap = {};
+  
+  while (oldStateSetArray.length !== newStateSetArray.length) {
+    if (newStateSetArray.length !== 0) {
+      oldStateSetArray = newStateSetArray;
+      olStateMap = newStateMap;
+    }
+    newStateSetArray = [];
+    newStateMap = {};
+
+    const endSymbol = getES();
+    oldStateSetArray.forEach(stateSet => {
+      let tmpMap = {};
+      stateSet.forEach(fromState => {
+        const toState = DFA.stateMap[fromState] && DFA.stateMap[fromState][endSymbol];
+        if (toState !== undefined) {
+          const oldSetIndex = olStateMap[toState];
+          if (tmpMap[oldSetIndex] === undefined) tmpMap[oldSetIndex] = new Set();
+          tmpMap[oldSetIndex].add(fromState);
+        } else {
+          if (tmpMap['undefined'] === undefined) tmpMap['undefined'] = new Set();
+          tmpMap['undefined'].add(fromState);
+        }
       });
+      Reflect.ownKeys(tmpMap).forEach(setIndex => {
+        let newStateSetIndex = newStateSetArray.length;
+        let setArray = Array.from(tmpMap[setIndex]);
+        setArray.forEach(state => {
+          newStateMap[state] = newStateSetIndex;
+        });
+        newStateSetArray.push(setArray);
+      });
+      tmpMap = {};
     });
-  });
+  }
+  return oldStateSetArray;
 }
 
 function test() {
