@@ -1,16 +1,6 @@
 'use strict';
 
-function getEndSymbol(endSymbolArray) {
-  let count = 0;
-  return function() {
-    const index = count++ % endSymbolArray.length;
-    console.log(endSymbolArray[index]);
-    return endSymbolArray[index];
-  }
-}
-
 function simplifyDFA(DFA) {
-  const getES = getEndSymbol(DFA.endSymbolArray);
   // 状态集合
   const stateSetArray = [[...DFA.endState], Reflect.ownKeys(DFA.stateMap).filter(s => !DFA.endState.includes(+s)).map(s => +s)];
   // 状态映射，状态 => stateSetIndex
@@ -25,19 +15,18 @@ function simplifyDFA(DFA) {
   });
 
   let oldStateSetArray = stateSetArray;
-  let olStateMap = stateSetMap;
+  let oldStateMap = stateSetMap;
   let newStateSetArray = [];
   let newStateMap = {};
   
   while (oldStateSetArray.length !== newStateSetArray.length) {
     if (newStateSetArray.length !== 0) {
       oldStateSetArray = newStateSetArray;
-      olStateMap = newStateMap;
+      oldStateMap = newStateMap;
     }
     newStateSetArray = [];
     newStateMap = {};
 
-    // const endSymbol = getES();
     oldStateSetArray.forEach(stateSet => {
       let tmpMap = {};
       // 终结符集遍历
@@ -49,7 +38,7 @@ function simplifyDFA(DFA) {
           const toState = DFA.stateMap[fromState] && DFA.stateMap[fromState][endSymbol];
           if (toState !== undefined) {
             // 目标状态对应的状态集Index
-            const oldSetIndex = olStateMap[toState];
+            const oldSetIndex = oldStateMap[toState];
             if (tmpMap[oldSetIndex] === undefined) tmpMap[oldSetIndex] = new Set();
             tmpMap[oldSetIndex].add(fromState);
           } else {
@@ -77,7 +66,46 @@ function simplifyDFA(DFA) {
       tmpMap = {};
     });
   }
-  return oldStateSetArray;
+
+  // 构造化简后的DFA
+  const newDFA = {
+    startState: null,
+    endState: [],
+    endSymbolArray: [].concat(DFA.endSymbolArray),
+    stateMap: {},
+  }
+  // 查找包含初态的状态集Index
+  const haveStartStateIndex = oldStateMap[DFA.startState];
+  // 查找包含终态的状态集Index
+  const haveEndStateIndexArray = DFA.endState.map(endState => {
+    return oldStateMap[endState];
+  });
+  // let stateIndex = 0;
+  // const stateIndexMapToState = {};
+  // oldStateSetArray.forEach((stateSet, stateSetIndex) => {
+  //   if (stateIndexMapToState[stateSetIndex] !== undefined) throw new Error(`stateIndexMapToState[${stateSetIndex}]已存在`);
+  //   stateIndexMapToState[stateSetIndex] = stateSetIndex; // stateSetIndex作为新的替代状态
+  // });
+  // 添加新的DFA初态
+  newDFA.startState = oldStateMap[DFA.startState];
+  // 添加新的终态
+  const endStateSet = new Set();
+  DFA.endState.forEach(state => {
+    endStateSet.add(oldStateMap[state]);
+  });
+  newDFA.endState = Array.from(endStateSet);
+  // 建立新的状态映射关系
+  Reflect.ownKeys(DFA.stateMap).forEach(fromState => {
+    const newFromState = oldStateMap[fromState];
+    if (newDFA.stateMap[newFromState] === undefined) newDFA.stateMap[newFromState] = {};
+    Reflect.ownKeys(DFA.stateMap[fromState]).forEach(endSymbol => {
+      const oldToState = DFA.stateMap[fromState][endSymbol];
+      const newToState = oldStateMap[oldToState];
+      newDFA.stateMap[newFromState][endSymbol] = newToState;
+    });
+  });
+
+  return newDFA;
 }
 
 function test() {
